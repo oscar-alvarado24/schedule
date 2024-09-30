@@ -1,16 +1,16 @@
 package com.colombia.eps.schedule.domain.model;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 public class ScheduleAppointment {
-    private String patientName;;
+    private String patientName;
     private String doctorName;
     private LocalDate date;
     private LocalTime time;
 
     public ScheduleAppointment() {
+        //constructor for generate a ScheduleAppointment object empty
     }
 
     public String getPatientName() {

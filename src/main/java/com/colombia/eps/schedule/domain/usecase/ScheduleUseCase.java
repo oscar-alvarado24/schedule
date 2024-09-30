@@ -33,14 +33,14 @@ public class ScheduleUseCase implements IScheduleServicePort {
     @Override
     public String createSchedule(Map<String, List<LocalDate>> holidays, Map<String, List<CreateSchedule>> schedulesRequests, YearMonth yearMonth) {
         List<CreateSchedule> createSchedules = Collections.synchronizedList(new ArrayList<>());
-        schedulesRequests.forEach((city, scheduleCreateList) -> {
+        schedulesRequests.forEach((city, scheduleCreateList) ->
             scheduleCreateList
                     .parallelStream()
                     .forEach(scheduleCreate -> {
                         scheduleCreate.setAppointments(createAppointmentToSet(scheduleCreate, holidays.get(city), yearMonth));
                         createSchedules.add(scheduleCreate);
-                    });
-        });
+                    })
+        );
         return schedulePersistencePort.createSchedule(createSchedules, yearMonth);
     }
 
@@ -67,7 +67,7 @@ public class ScheduleUseCase implements IScheduleServicePort {
 
 
         for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
-            LocalDate currentDate = firstDayOfMonth.plusDays(day - 1);
+            LocalDate currentDate = firstDayOfMonth.plusDays(day - 1L);
             DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
             if (workDays.contains(dayOfWeek) && !holidays.contains(currentDate)) {
                 daysOfMonth.add(currentDate);

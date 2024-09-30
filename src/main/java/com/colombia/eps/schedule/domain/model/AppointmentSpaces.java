@@ -8,6 +8,7 @@ public class AppointmentSpaces {
     private LocalDate date;
 
     public AppointmentSpaces() {
+        //constructor for generate a AppointmentSpaces object empty
     }
 
     public String getDoctorName() {

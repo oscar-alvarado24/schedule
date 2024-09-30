@@ -1,7 +1,6 @@
 package com.colombia.eps.schedule.infrastructure.output.dynamo.mapper;
 
 import com.colombia.eps.schedule.domain.model.CreateSchedule;
-import com.colombia.eps.schedule.domain.model.Appointments;
 import com.colombia.eps.schedule.infrastructure.output.dynamo.entity.ScheduleMonth;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
@@ -31,24 +30,24 @@ public interface IDynamoMapper {
     }
     default Map<LocalDate,Map<LocalTime,String>> toMapWithMap(Map<String,Map<String,String>> stringMap){
         Map<LocalDate,Map<LocalTime,String>> map = new HashMap<>();
-        stringMap.forEach((key, value) -> {
-            map.put(LocalDate.parse(key), toMapWithLocalTime(value));
-        });
+        stringMap.forEach((key, value) ->
+            map.put(LocalDate.parse(key), toMapWithLocalTime(value))
+        );
         return map;
     }
 
     default Map<String,String> toMapWithStringMap(Map<LocalTime, String> localTimeMap){
         Map<String,String> map = new HashMap<>();
-        localTimeMap.forEach((key, value) -> {
-            map.put(key.toString(),value);
-        });
+        localTimeMap.forEach((key, value) ->
+            map.put(key.toString(),value)
+        );
         return map;
     }
     default Map<String,Map<String,String>> toMapWithFieldsString(Map<LocalDate,Map<LocalTime,String>> mapWithFieldsClass){
         Map<String,Map<String,String>> map = new HashMap<>();
-        mapWithFieldsClass.forEach((key, value) -> {
-            map.put(key.toString(),toMapWithStringMap(value));
-        });
+        mapWithFieldsClass.forEach((key, value) ->
+            map.put(key.toString(),toMapWithStringMap(value))
+        );
         return map;
     }
 }

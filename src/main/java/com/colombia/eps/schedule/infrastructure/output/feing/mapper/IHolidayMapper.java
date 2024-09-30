@@ -17,9 +17,9 @@ public interface IHolidayMapper {
     IHolidayMapper INSTANCE = Mappers.getMapper(IHolidayMapper.class);
     default Map<String, List<LocalDate>> toMap(List<DatesResponse> datesResponse){
         Map<String, List<LocalDate>> map = new HashMap<>();
-        datesResponse.forEach(datesResponseProcess -> {
-            map.put(datesResponseProcess.getCity(), datesResponseProcess.getHolidays());
-        });
+        datesResponse.forEach(datesResponseProcess ->
+            map.put(datesResponseProcess.getCity(), datesResponseProcess.getHolidays())
+        );
 
         return map;
     }

@@ -6,9 +6,7 @@ import com.colombia.eps.schedule.domain.model.CreateSchedule;
 import com.colombia.eps.schedule.domain.model.Appointments;
 import com.colombia.eps.schedule.domain.model.ScheduleAppointment;
 import com.colombia.eps.schedule.domain.spi.ISchedulePersistencePort;
-import com.colombia.eps.schedule.infrastructure.exception.DontCreteSchedulesException;
-import com.colombia.eps.schedule.infrastructure.exception.FailedToSaveAppointmentException;
-import com.colombia.eps.schedule.infrastructure.exception.TableScheduleNotCreatedException;
+import com.colombia.eps.schedule.infrastructure.exception.*;
 import com.colombia.eps.schedule.infrastructure.output.dynamo.config.DynamoDbManager;
 import com.colombia.eps.schedule.infrastructure.output.dynamo.entity.ScheduleMonth;
 import com.colombia.eps.schedule.infrastructure.output.dynamo.mapper.IDynamoMapper;
@@ -41,18 +39,22 @@ public class DynamoAdapter implements ISchedulePersistencePort {
 
         String tableName = getTableName(yearMonth.atDay(1));
         try (DynamoDbManager manager = new DynamoDbManager()) {
-            try {
-                manager.createTable(tableName).describeTable();
-                log.info(Constants.TABLE_EXIST, tableName);
-            } catch (ResourceNotFoundException exception) {
-                log.info(Constants.TABLE_DONT_EXIST, tableName);
-                dynamoRepository.createTableScheduleMonth(manager.getEnhancedClient(), tableName);
-            }
+            evaluateStatusTable(manager, tableName);
             List<ScheduleMonth> scheduleMonths = dynamoMapper.toScheduleMonth(createSchedules);
             return dynamoRepository.saveScheduleMonths(scheduleMonths, manager.getEnhancedClient(), manager.createTable(tableName));
         } catch (Exception exception) {
             log.error(exception.getMessage(), exception);
             throw new DontCreteSchedulesException(Constants.CREATE_SCHEDULES_MONTH_FAILED);
+        }
+    }
+
+    private void evaluateStatusTable(DynamoDbManager manager, String tableName) {
+        try {
+            manager.createTable(tableName).describeTable();
+            log.info(Constants.TABLE_EXIST, tableName);
+        } catch (ResourceNotFoundException exception) {
+            log.info(Constants.TABLE_DONT_EXIST, tableName);
+            dynamoRepository.createTableScheduleMonth(manager.getEnhancedClient(), tableName);
         }
     }
 
@@ -82,12 +84,60 @@ public class DynamoAdapter implements ISchedulePersistencePort {
 
     }
 
+    /**
+     * @param appointmentSpaces request os appointment for a day
+     * @return list of appointments available for a day required
+     */
+    @Override
+    public List<Appointments> getAppointmentSpaces(AppointmentSpaces appointmentSpaces) {
+        String tableName = getTableName(appointmentSpaces.getDate());
+        List<Appointments> appointmentsResponse = new ArrayList<>();
+        try (DynamoDbManager manager = new DynamoDbManager()) {
+            DynamoDbTable<ScheduleMonth> table = manager.createTable(tableName);
+            String dateAppointment = appointmentSpaces.getDate().toString();
+            if (Constants.FIRST_TIME.equalsIgnoreCase(appointmentSpaces.getDoctorName())) {
+                List<ScheduleMonth> scheduleMonths = dynamoRepository.getScheduleMonthsByIndex(Constants.AREA_INDEX, appointmentSpaces.getArea(), table);
+                Map<String, Map<String, String>> scheduleOrderByDoctor = generateMapDoctorAppointment(scheduleMonths, dateAppointment);
+                appointmentsResponse.addAll(processingForFirstTime(scheduleOrderByDoctor));
+            }else{
+                ScheduleMonth doctorSchedule = getDoctorSchedule(appointmentSpaces.getDoctorName(), table);
+                if (!doctorSchedule.getAppointments().containsKey(dateAppointment)){
+                    throw new DoctorWithoutAppointmentForDayExeption(Constants.MSG_DOCTOR_WITHOUT_APPOINTMENT_FOR_DAY);
+                }
+                Map<String, Map<String, String>> doctorAppointmentSpaces = generateMapDoctorAppointment(List.of(doctorSchedule), dateAppointment);
+                if (doctorAppointmentSpaces.get(appointmentSpaces.getDoctorName()).isEmpty() ){
+                    throw new DoctorWithoutAppointmentSpacesExeption(Constants.MSG_DOCTOR_WITHOUT_APPOINTMENT_SPACES);
+                }
+                String doctorName = appointmentSpaces.getDoctorName();
+                appointmentsResponse.add(determinateAppointmentsToSet(doctorName, doctorAppointmentSpaces.get(doctorName)));
+            }
+            return appointmentsResponse;
+        } catch (Exception exception) {
+            log.error(exception.getMessage(), exception);
+            if (exception instanceof ResourceNotFoundException) {
+                throw new TableScheduleNotCreatedException(Constants.TABLE_NOT_CREATE_MESSAGE);
+            }
+            throw new FailedToSaveAppointmentException(Constants.FAILED_TO_SAVE_APPOINTMENT);
+        }
+    }
+
+    private Appointments determinateAppointmentsToSet( String doctorName, Map<String, String> doctorAppointments) {
+        Map<String, String> appointmentsToAdd = doctorAppointments.size()<=10 ? doctorAppointments : doctorAppointments.entrySet()
+                .stream()
+                .limit(10)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Appointments appointments = new Appointments();
+        appointments.setDoctorName(doctorName);
+        appointments.setDoctorAppointments(new HashMap<>(dynamoMapper.toMapWithLocalTime(appointmentsToAdd)));
+        return appointments;
+    }
+
     private String getTableName(LocalDate date) {
         return Constants.SCHEDULE + date.getMonth().getDisplayName(TextStyle.FULL, Locale.US).toLowerCase(Locale.ROOT);
     }
 
     private ScheduleMonth getDoctorSchedule(String doctorName, DynamoDbTable<ScheduleMonth> table) {
-        return dynamoRepository.getScheduleByDoctorName(doctorName, table);
+        return dynamoRepository.getScheduleByDoctorName(doctorName, table).orElseThrow(()->new DoctorWithoutScheduleExeption(Constants.DOCTOR_WITHOUT_SCHEDULE));
     }
 
     private void updateAppointment(ScheduleMonth doctorSchedule, ScheduleAppointment scheduleAppointment) {
@@ -99,32 +149,6 @@ public class DynamoAdapter implements ISchedulePersistencePort {
         Map<String, String> dayAppointments = appointments.computeIfAbsent(dateKey, k -> new HashMap<>());
 
         dayAppointments.put(timeKey, scheduleAppointment.getPatientName());
-    }
-
-    /**
-     * @param appointmentSpaces request os appointment for a day
-     * @return list of appointments available
-     */
-    @Override
-    public List<Appointments> getAppointmentSpaces(AppointmentSpaces appointmentSpaces) {
-        String tableName = getTableName(appointmentSpaces.getDate());
-        List<Appointments> appointmentsResponse = new ArrayList<>();
-        try (DynamoDbManager manager = new DynamoDbManager()) {
-            DynamoDbTable<ScheduleMonth> table = manager.createTable(tableName);
-            String filterKey = appointmentSpaces.getDate().toString();
-            if (Constants.FIRST_TIME.equalsIgnoreCase(appointmentSpaces.getDoctorName())) {
-                List<ScheduleMonth> scheduleMonths = dynamoRepository.getScheduleMonthsByIndex(Constants.AREA_INDEX, appointmentSpaces.getArea(), table);
-                Map<String, Map<String, String>> scheduleOrderByDoctor = generateMapDoctorAppointment(scheduleMonths, filterKey);
-                appointmentsResponse.addAll(processingForFirstTime(scheduleOrderByDoctor));
-            }
-            return appointmentsResponse;
-        } catch (Exception exception) {
-            log.error(exception.getMessage(), exception);
-            if (exception instanceof ResourceNotFoundException) {
-                throw new TableScheduleNotCreatedException(Constants.TABLE_NOT_CREATE_MESSAGE);
-            }
-            throw new FailedToSaveAppointmentException(Constants.FAILED_TO_SAVE_APPOINTMENT);
-        }
     }
 
     /**
@@ -171,7 +195,7 @@ public class DynamoAdapter implements ISchedulePersistencePort {
                 }
             }
             repetitions++;
-            if (residue.get() == 0 && repetitions > 0 || appointmentsResponse.size() == 10) {
+            if (residue.get() == 0 && repetitions > 0 ) {
                 break;
             }
             countAvailabilities = countDoctorsWithAppointmentsAvailabilities(scheduleOrderByDoctor);
@@ -221,19 +245,24 @@ public class DynamoAdapter implements ISchedulePersistencePort {
      * @return map with appointment´s list, value of residue and appointment´s list for the doctor after processing
      */
     private Appointments processingAppointmentsAvailable(String doctorName, Map<String, String> appointments, int appointmentsByDoctor, int finalRepetitions, AtomicInteger residue) {
-        Map<String, Object> response = new HashMap<>();
-        int res = 0;
+
         Appointments appointmentsSpaces = new Appointments();
         appointmentsSpaces.setDoctorName(doctorName);
-        Map<String, String> appointmentsToAdd = new HashMap<>();
+        Map<String, String> appointmentsToAdd;
         if (appointments.size() <= appointmentsByDoctor) {
             if ((appointments.size() < appointmentsByDoctor) && (finalRepetitions == 0)) {
                 residue.set(residue.get() + (appointmentsByDoctor - appointments.size()));
             }
             appointmentsToAdd = appointments;
         } else {
-            int limit = residue.get() == 0 ? appointmentsByDoctor : finalRepetitions > 0 ? 1 : appointmentsByDoctor + 1;
-
+            int limit;
+            if (residue.get() == 0) {
+                limit = appointmentsByDoctor;
+            } else if (finalRepetitions > 0) {
+                limit = 1;
+            } else {
+                limit = appointmentsByDoctor + 1;
+            }
             appointmentsToAdd = appointments.entrySet()
                     .stream()
                     .limit(limit)
@@ -241,7 +270,7 @@ public class DynamoAdapter implements ISchedulePersistencePort {
             residue.set(residue.get()-(limit-appointmentsByDoctor));
         }
         appointmentsToAdd.keySet().forEach(appointments::remove);
-        appointmentsSpaces.setAppointments(new HashMap<>(dynamoMapper.toMapWithLocalTime(appointmentsToAdd)));
+        appointmentsSpaces.setDoctorAppointments(new HashMap<>(dynamoMapper.toMapWithLocalTime(appointmentsToAdd)));
         return appointmentsSpaces;
     }
 }

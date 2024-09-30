@@ -12,7 +12,9 @@ import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughput;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 public class DynamoRepository  implements IDynamoRepository{
@@ -29,8 +31,8 @@ public class DynamoRepository  implements IDynamoRepository{
 
             CreateTableEnhancedRequest createTableRequest = CreateTableEnhancedRequest.builder()
                     .globalSecondaryIndices(areaGsi)
-                    .provisionedThroughput(ProvisionedThroughput.builder()
-                            .readCapacityUnits(5L)
+                    .provisionedThroughput(p ->
+                            p.readCapacityUnits(5L)
                             .writeCapacityUnits(5L)
                             .build())
                     .build();
@@ -88,7 +90,7 @@ public class DynamoRepository  implements IDynamoRepository{
         return queryResult.stream()
                 .parallel()
                 .flatMap(page -> page.items().stream())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -97,9 +99,9 @@ public class DynamoRepository  implements IDynamoRepository{
      * @return
      */
     @Override
-    public ScheduleMonth getScheduleByDoctorName(String doctorName, DynamoDbTable<ScheduleMonth> table) {
+    public Optional<ScheduleMonth> getScheduleByDoctorName(String doctorName, DynamoDbTable<ScheduleMonth> table) {
         Key key = Key.builder().partitionValue(doctorName).build();
-        return table.getItem(key);
+        return Optional.ofNullable(table.getItem(key));
     }
 
     /**
@@ -116,8 +118,8 @@ public class DynamoRepository  implements IDynamoRepository{
         return EnhancedGlobalSecondaryIndex.builder()
                 .indexName(indexName)
                 .projection(p -> p.projectionType(ProjectionType.ALL))
-                .provisionedThroughput(ProvisionedThroughput.builder()
-                        .readCapacityUnits(5L)
+                .provisionedThroughput(p->
+                        p.readCapacityUnits(5L)
                         .writeCapacityUnits(5L)
                         .build())
                 .build();

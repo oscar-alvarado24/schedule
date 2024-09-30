@@ -22,9 +22,7 @@ public final class Constants {
     public static final String SCHEDULE_APPOINTMENT_SUCCESFULL = "Se agenda la cita satisfactoriamente";
     public static final String FAILED_TO_SAVE_APPOINTMENT = "Fallo el proceso de guardado de la cita";
     public static final String FIRST_TIME = "primera vez";
-    public static final String SCHEDULE_OBJECT = "schedule-object";
-    public static final String RESIDUE = "residue";
-    public static final String APPOINTMENTS = "appointments";
-    public static final String UNCHECKED = "unchecked";
-    public static final String BASE_PACKAGES_REPOSITORY = "com.colombia.eps.schedule.infrastructure.output.dynamo.repository";
+    public static final String DOCTOR_WITHOUT_SCHEDULE = "El doctor no tiene agenda generada";
+    public static final String MSG_DOCTOR_WITHOUT_APPOINTMENT_SPACES = "El doctor no cuenta con citas disponibles para el dia";
+    public static final String MSG_DOCTOR_WITHOUT_APPOINTMENT_FOR_DAY = "El doctor no cuenta con citas para el dia solicitado";
 }

@@ -46,7 +46,7 @@ public interface IScheduleMapper {
         List<AppointmentSpacesResponse> appointmentSpacesResponse = new ArrayList<>();
         appointments.forEach(appointment ->{
             String doctorName = appointment.getDoctorName();
-            appointment.getAppointments().forEach((key,value)->{
+            appointment.getDoctorAppointments().forEach((key, value)->{
                 AppointmentSpacesResponse spacesResponse = new AppointmentSpacesResponse();
                 spacesResponse.setDoctorName(doctorName);
                 spacesResponse.setTime(key);

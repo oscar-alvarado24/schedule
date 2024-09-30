@@ -8,6 +8,7 @@ class AppointmentSpacesApplicationTests {
 
 	@Test
 	void contextLoads() {
+		//test not started
 	}
 
 }

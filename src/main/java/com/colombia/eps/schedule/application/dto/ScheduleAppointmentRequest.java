@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ScheduleAppointmentRequest {
-    private String patientName;;
+    private String patientName;
     private String doctorName;
     private LocalDateTime date;
 }

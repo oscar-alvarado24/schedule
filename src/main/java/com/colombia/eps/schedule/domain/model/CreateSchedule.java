@@ -15,6 +15,7 @@ public class CreateSchedule {
     private Map<LocalDate,Map<LocalTime,String>> appointments;
 
     public CreateSchedule() {
+        //constructor for generate a CreateSchedule object empty
     }
 
     public String getWorkingDay() {
